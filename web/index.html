@@ -28,20 +28,23 @@
     <style>
         *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
-        html, body {
+        html {
             width: 100%;
-            max-width: 100vw;
-            overflow-x: hidden;
-            font-family: 'Inter', -apple-system, sans-serif;
-            background: #fafafa;
-            color: #1a1a1a;
             height: 100%;
-            -webkit-text-size-adjust: 100%;
+            overflow: hidden;
         }
 
         body {
+            width: 100%;
+            max-width: 100vw;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: #fafafa;
+            color: #1a1a1a;
             display: flex;
             flex-direction: column;
+            -webkit-text-size-adjust: 100%;
         }
 
         header {
@@ -225,6 +228,8 @@
             border-top: 1px solid #e5e5e5;
             background: white;
             flex-shrink: 0;
+            position: relative;
+            z-index: 10;
         }
 
         .input-row {
@@ -499,6 +504,8 @@
                                 const results = JSON.parse(data);
                                 chat.querySelectorAll('.message.status').forEach(el => el.remove());
                                 resultContainer = addMessage('assistant', renderResults(results));
+                                // Scroll to show the TOP of results, not bottom
+                                resultContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
                             } else if (event === 'recommendation') {
                                 chat.querySelectorAll('.message.status').forEach(el => el.remove());
                                 const recDiv = document.createElement('div');

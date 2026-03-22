@@ -82,6 +82,7 @@ async def chat(request: Request):
 
         if action == "need_zipcode":
             yield _sse("chat_response", parsed.get("response", "What's your zipcode? I need it to find theaters near you."))
+            session["last_search"] = parsed  # Save so follow-up can merge movie name
             session["history"].append({"role": "user", "content": message})
             session["history"].append({"role": "assistant", "content": parsed["response"]})
             return
