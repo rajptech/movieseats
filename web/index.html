@@ -2,23 +2,19 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MovieSeats</title>
-    <!-- Firebase -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
         import { getAnalytics, logEvent } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-analytics.js";
-
-        const firebaseConfig = {
+        const app = initializeApp({
             apiKey: "AIzaSyCoroubTmusBaBXuEM9V7pOtmiWQ1rPd9Q",
             authDomain: "movieseats-app.firebaseapp.com",
             projectId: "movieseats-app",
             storageBucket: "movieseats-app.firebasestorage.app",
             messagingSenderId: "516464050812",
             appId: "1:516464050812:web:28ba95f2e6aa67e00a7ff9"
-        };
-
-        const app = initializeApp(firebaseConfig);
+        });
         const analytics = getAnalytics(app);
         window.firebaseLogEvent = (name, params) => logEvent(analytics, name, params || {});
         logEvent(analytics, 'page_view');
@@ -28,43 +24,39 @@
     <style>
         *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
-        html {
+        html, body {
             width: 100%;
-            height: 100%;
-            overflow: hidden;
-        }
-
-        body {
-            width: 100%;
-            max-width: 100vw;
-            height: 100%;
+            height: 100dvh; /* dynamic viewport height for iOS */
+            height: 100vh; /* fallback */
             overflow: hidden;
             font-family: 'Inter', -apple-system, sans-serif;
             background: #fafafa;
             color: #1a1a1a;
-            display: flex;
-            flex-direction: column;
             -webkit-text-size-adjust: 100%;
         }
 
+        body {
+            display: flex;
+            flex-direction: column;
+        }
+
         header {
-            padding: 16px 20px;
+            padding: 14px 16px;
             border-bottom: 1px solid #e5e5e5;
             background: white;
             flex-shrink: 0;
         }
 
-        header h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.5px; }
-        header p { font-size: 13px; color: #888; margin-top: 2px; }
+        header h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.5px; }
+        header p { font-size: 12px; color: #888; margin-top: 2px; }
 
         .chat-container {
             flex: 1;
             overflow-y: auto;
-            overflow-x: hidden;
-            padding: 16px;
+            padding: 12px;
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 10px;
             -webkit-overflow-scrolling: touch;
         }
 
@@ -74,13 +66,14 @@
             font-size: 15px;
             word-wrap: break-word;
             overflow-wrap: break-word;
+            word-break: break-word;
         }
 
         .message.user {
             align-self: flex-end;
             background: #1a1a1a;
             color: white;
-            padding: 10px 16px;
+            padding: 10px 14px;
             border-radius: 18px 18px 4px 18px;
             max-width: 80%;
         }
@@ -88,7 +81,7 @@
         .message.assistant {
             align-self: flex-start;
             background: white;
-            padding: 14px 16px;
+            padding: 12px 14px;
             border-radius: 4px 18px 18px 18px;
             border: 1px solid #e5e5e5;
             width: 100%;
@@ -122,28 +115,27 @@
             align-self: flex-start;
             color: #c00;
             font-size: 14px;
-            padding: 12px 16px;
+            padding: 12px 14px;
             background: #fff5f5;
             border-radius: 8px;
             border: 1px solid #fdd;
-            max-width: 100%;
         }
 
         .results-grid {
             display: flex;
             flex-direction: column;
             gap: 8px;
-            margin-top: 12px;
+            margin-top: 8px;
         }
 
         .seat-card {
             background: #f7f7f7;
             border: 1px solid #eee;
             border-radius: 10px;
-            padding: 12px 14px;
+            padding: 12px;
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 6px;
         }
 
         .seat-card.top-pick {
@@ -153,31 +145,26 @@
 
         .seat-card .theater-name {
             font-weight: 600;
-            font-size: 15px;
+            font-size: 14px;
             line-height: 1.3;
         }
 
         .seat-card .showtime {
             font-size: 13px;
             color: #666;
-            margin-top: 2px;
             line-height: 1.4;
-        }
-
-        .seat-card .availability {
-            font-size: 12px;
         }
 
         .seat-card .seat-row {
             display: flex;
             align-items: center;
-            justify-content: space-between;
             gap: 8px;
+            flex-wrap: wrap;
         }
 
         .seat-card .seat-numbers {
             font-weight: 700;
-            font-size: 18px;
+            font-size: 17px;
             color: #16a34a;
         }
 
@@ -188,15 +175,15 @@
 
         .seat-card .buy-link {
             display: inline-block;
-            margin-top: 4px;
+            margin-top: 2px;
             font-size: 13px;
             font-weight: 600;
             color: #1a1a1a;
             text-decoration: none;
             background: #e5e5e5;
-            padding: 8px 16px;
+            padding: 7px 14px;
             border-radius: 20px;
-            text-align: center;
+            align-self: flex-start;
         }
 
         .seat-card.top-pick .buy-link {
@@ -204,10 +191,10 @@
             color: white;
         }
 
-        .seat-card .buy-link:hover { opacity: 0.8; }
+        .seat-card .buy-link:active { opacity: 0.7; }
 
         .seat-card .seat-hint {
-            font-size: 12px;
+            font-size: 11px;
             color: #888;
             line-height: 1.4;
         }
@@ -217,45 +204,43 @@
             border: 1px solid #e5e5e5;
             border-left: 3px solid #16a34a;
             border-radius: 4px 8px 8px 4px;
-            padding: 12px 14px;
-            margin-top: 8px;
+            padding: 10px 12px;
+            margin-top: 6px;
             font-size: 14px;
-            line-height: 1.7;
+            line-height: 1.6;
         }
 
         .input-area {
-            padding: 12px 16px;
+            padding: 10px 12px;
+            padding-bottom: max(10px, env(safe-area-inset-bottom));
             border-top: 1px solid #e5e5e5;
             background: white;
             flex-shrink: 0;
-            position: relative;
-            z-index: 10;
         }
 
         .input-row {
             display: flex;
             gap: 8px;
             width: 100%;
-            max-width: 640px;
         }
 
         .input-row input {
             flex: 1;
             min-width: 0;
-            padding: 12px 16px;
+            padding: 10px 14px;
             border: 1px solid #ddd;
             border-radius: 24px;
             font-family: 'Inter', sans-serif;
-            font-size: 15px;
+            font-size: 16px; /* 16px prevents iOS zoom */
             outline: none;
             -webkit-appearance: none;
         }
 
         .input-row input:focus { border-color: #999; }
-        .input-row input::placeholder { color: #bbb; }
+        .input-row input::placeholder { color: #bbb; font-size: 14px; }
 
         .input-row button {
-            padding: 12px 20px;
+            padding: 10px 18px;
             background: #1a1a1a;
             color: white;
             border: none;
@@ -268,14 +253,14 @@
             -webkit-appearance: none;
         }
 
-        .input-row button:hover { background: #333; }
+        .input-row button:active { background: #333; }
         .input-row button:disabled { background: #ccc; cursor: not-allowed; }
 
         .examples {
-            margin-top: 8px;
+            margin-top: 6px;
             font-size: 11px;
             color: #aaa;
-            line-height: 1.6;
+            line-height: 1.5;
         }
 
         .examples span {
@@ -284,41 +269,42 @@
             text-decoration-color: #ddd;
         }
 
-        .examples span:hover { color: #666; }
-
         .welcome {
             text-align: center;
-            padding: 60px 16px;
+            padding: 40px 16px;
             color: #888;
         }
 
-        .welcome h2 { font-size: 22px; font-weight: 700; color: #1a1a1a; margin-bottom: 8px; }
-        .welcome p { font-size: 15px; line-height: 1.6; }
+        .welcome h2 { font-size: 20px; font-weight: 700; color: #1a1a1a; margin-bottom: 8px; }
+        .welcome p { font-size: 14px; line-height: 1.6; }
 
-        .elapsed { font-size: 12px; color: #aaa; margin-top: 8px; }
+        .elapsed { font-size: 11px; color: #aaa; margin-top: 6px; }
 
         .movie-list {
             display: flex;
             flex-wrap: wrap;
-            gap: 8px;
-            margin: 12px 0;
+            gap: 6px;
+            margin: 8px 0;
         }
 
         .movie-chip {
             background: #f0f0f0;
             border: 1px solid #e0e0e0;
             border-radius: 20px;
-            padding: 8px 14px;
+            padding: 6px 12px;
             font-size: 13px;
             font-weight: 500;
             cursor: pointer;
-            transition: background 0.15s;
         }
 
-        .movie-chip:hover { background: #e0e0e0; }
+        .movie-chip:active { background: #ddd; }
 
-        /* Desktop: side-by-side seat card layout */
+        /* Desktop */
         @media (min-width: 601px) {
+            header { padding: 16px 20px; }
+            header h1 { font-size: 20px; }
+            .chat-container { padding: 16px; gap: 12px; }
+            .input-area { padding: 12px 16px; }
             .seat-card {
                 flex-direction: row;
                 align-items: flex-start;
@@ -329,6 +315,8 @@
                 align-items: flex-end;
                 min-width: 80px;
             }
+            .welcome { padding: 60px 20px; }
+            .welcome h2 { font-size: 24px; }
         }
     </style>
 </head>
@@ -352,8 +340,8 @@
         </div>
         <div class="examples">
             Try:
-            <span onclick="fillExample(this)">Dhurandhar tomorrow evening near 75035</span> &middot;
-            <span onclick="fillExample(this)">Project Hail Mary morning 75024, 3 tickets</span> &middot;
+            <span onclick="fillExample(this)">Dhurandhar tomorrow evening 75035</span> &middot;
+            <span onclick="fillExample(this)">Project Hail Mary morning 75024</span> &middot;
             <span onclick="fillExample(this)">what's playing near 90001?</span>
         </div>
     </div>
@@ -364,27 +352,16 @@
         const sendBtn = document.getElementById('send');
         let isSearching = false;
         const sessionId = 'session_' + Math.random().toString(36).slice(2);
-
-        // API backend URL — Cloud Run for production, localhost for dev
-        const API_URL = window.location.hostname === 'localhost'
-            ? ''
-            : 'https://movieseats-516464050812.us-central1.run.app';
+        const API_URL = window.location.hostname === 'localhost' ? '' : 'https://movieseats-516464050812.us-central1.run.app';
 
         input.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
-                if (isSearching) {
-                    e.preventDefault();
-                } else {
-                    sendMessage();
-                }
+                if (isSearching) e.preventDefault();
+                else sendMessage();
             }
         });
 
-        function fillExample(el) {
-            input.value = el.textContent;
-            input.focus();
-        }
-
+        function fillExample(el) { input.value = el.textContent; input.focus(); }
         function pickMovie(el) {
             if (window.firebaseLogEvent) firebaseLogEvent('movie_picked', { movie: el.textContent });
             input.value = el.textContent;
@@ -394,9 +371,7 @@
         function addMessage(type, content) {
             const welcome = chat.querySelector('.welcome');
             if (welcome) welcome.remove();
-            if (type === 'status') {
-                chat.querySelectorAll('.message.status').forEach(el => el.remove());
-            }
+            if (type === 'status') chat.querySelectorAll('.message.status').forEach(el => el.remove());
             const div = document.createElement('div');
             div.className = `message ${type}`;
             div.innerHTML = content;
@@ -407,34 +382,25 @@
 
         function renderResults(results) {
             let html = '<div class="results-grid">';
-
             results.forEach((r, i) => {
                 const isTop = i === 0;
                 const best = r.seats[0];
                 if (!best) return;
-
-                const pct = Math.round((r.available / r.total) * 100);
-                const availColor = pct > 50 ? '#16a34a' : pct > 20 ? '#ca8a04' : '#dc2626';
                 const priceStr = r.price ? ` · $${r.price.toFixed(2)}` : '';
-
                 html += `
                     <div class="seat-card ${isTop ? 'top-pick' : ''}">
                         <div class="theater-info">
                             <div class="theater-name">${isTop ? '&#9733; ' : ''}${r.theater}</div>
                             <div class="showtime">${r.date ? r.date + ' · ' : ''}${r.time} · ${r.format}${priceStr}</div>
-                            <div class="availability" style="color: ${availColor}">${r.available}/${r.total} seats available</div>
                             <div class="seat-row">
-                                <div>
-                                    <span class="seat-numbers">${best.labels}</span>
-                                    <span class="seat-score">${best.reasoning.split('—')[1] || ''}</span>
-                                </div>
+                                <span class="seat-numbers">${best.labels}</span>
+                                <span class="seat-score">${best.reasoning.split('\u2014')[1] || ''}</span>
                             </div>
                             ${r.url ? `<a class="buy-link" href="${r.url}" target="_blank" onclick="if(window.firebaseLogEvent)firebaseLogEvent('buy_click',{theater:'${r.theater.replace(/'/g,'')}',time:'${r.time}',seats:'${best.labels}'})">Select Seats &rarr;</a>` : ''}
                             ${isTop ? `<div class="seat-hint">On Cinemark's page, look for Row ${best.labels.charAt(0)}, seats ${best.labels.replace(/[A-Z]/g, '').replace(/, /g, ' and ')}</div>` : ''}
                         </div>
                     </div>`;
             });
-
             html += '</div>';
             return html;
         }
@@ -442,12 +408,10 @@
         async function sendMessage() {
             const text = input.value.trim();
             if (!text || isSearching) return;
-
             isSearching = true;
             sendBtn.disabled = true;
             input.value = '';
             addMessage('user', text);
-
             if (window.firebaseLogEvent) window.firebaseLogEvent('search_started', { query: text });
 
             try {
@@ -456,7 +420,6 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ message: text, session_id: sessionId }),
                 });
-
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
                 let buffer = '';
@@ -465,12 +428,9 @@
                 while (true) {
                     const { done, value } = await reader.read();
                     if (done) break;
-
                     buffer += decoder.decode(value, { stream: true });
-
-                    // SSE messages are separated by double newlines
                     const messages = buffer.split('\n\n');
-                    buffer = messages.pop(); // keep incomplete message in buffer
+                    buffer = messages.pop();
 
                     for (const msg of messages) {
                         if (!msg.trim()) continue;
@@ -481,69 +441,49 @@
                         }
                         if (!event || !data) continue;
 
-                            if (event === 'movies') {
-                                chat.querySelectorAll('.message.status').forEach(el => el.remove());
-                                const movies = JSON.parse(data);
-                                let mhtml = '<div class="movie-list">';
-                                movies.slice(0, 20).forEach(m => {
-                                    mhtml += `<span class="movie-chip" onclick="pickMovie(this)">${m.name}</span>`;
-                                });
-                                mhtml += '</div>';
-                                addMessage('assistant', mhtml);
-                            } else if (event === 'chat_response') {
-                                chat.querySelectorAll('.message.status').forEach(el => el.remove());
-                                addMessage('assistant', data);
-                            } else if (event === 'status') {
-                                addMessage('status', data);
-                            } else if (event === 'error') {
-                                chat.querySelectorAll('.message.status').forEach(el => el.remove());
-                                addMessage('error', data);
-                            } else if (event === 'parsed') {
-                                const p = JSON.parse(data);
-                                const dateStr = p.date ? `date: ${p.date}` : 'today';
-                                addMessage('status', `Searching: ${p.movie} near ${p.zipcode} · ${dateStr} · ${p.time_pref} · ${p.seats} seats`);
-                                if (window.firebaseLogEvent) {
-                                    window.firebaseLogEvent('search_parsed', {
-                                        movie: p.movie, zipcode: p.zipcode,
-                                        time_pref: p.time_pref, seats: p.seats,
-                                        date: p.date || 'today',
-                                    });
-                                }
-                            } else if (event === 'results') {
-                                const results = JSON.parse(data);
-                                chat.querySelectorAll('.message.status').forEach(el => el.remove());
-                                resultContainer = addMessage('assistant', renderResults(results));
-                                // Scroll to show the TOP of results, not bottom
-                                resultContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                            } else if (event === 'recommendation') {
-                                chat.querySelectorAll('.message.status').forEach(el => el.remove());
-                                const recDiv = document.createElement('div');
-                                recDiv.className = 'recommendation';
-                                recDiv.textContent = data;
-                                if (resultContainer) {
-                                    resultContainer.appendChild(recDiv);
-                                } else {
-                                    addMessage('assistant', `<div class="recommendation">${data}</div>`);
-                                }
-                                chat.scrollTop = chat.scrollHeight;
-                            } else if (event === 'done') {
-                                chat.querySelectorAll('.message.status').forEach(el => el.remove());
-                                const doneData = JSON.parse(data);
-                                if (window.firebaseLogEvent) {
-                                    window.firebaseLogEvent('search_completed', { elapsed: doneData.elapsed });
-                                }
-                                const elapsed = document.createElement('div');
-                                elapsed.className = 'elapsed';
-                                elapsed.textContent = `Completed in ${doneData.elapsed}s`;
-                                if (resultContainer) resultContainer.appendChild(elapsed);
-                                chat.scrollTop = chat.scrollHeight;
-                            }
+                        if (event === 'movies') {
+                            chat.querySelectorAll('.message.status').forEach(el => el.remove());
+                            const movies = JSON.parse(data);
+                            let mhtml = '<div class="movie-list">';
+                            movies.slice(0, 20).forEach(m => { mhtml += `<span class="movie-chip" onclick="pickMovie(this)">${m.name}</span>`; });
+                            mhtml += '</div>';
+                            addMessage('assistant', mhtml);
+                        } else if (event === 'chat_response') {
+                            chat.querySelectorAll('.message.status').forEach(el => el.remove());
+                            addMessage('assistant', data);
+                        } else if (event === 'status') {
+                            addMessage('status', data);
+                        } else if (event === 'error') {
+                            chat.querySelectorAll('.message.status').forEach(el => el.remove());
+                            addMessage('error', data);
+                        } else if (event === 'results') {
+                            const results = JSON.parse(data);
+                            chat.querySelectorAll('.message.status').forEach(el => el.remove());
+                            resultContainer = addMessage('assistant', renderResults(results));
+                            resultContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        } else if (event === 'recommendation') {
+                            chat.querySelectorAll('.message.status').forEach(el => el.remove());
+                            const recDiv = document.createElement('div');
+                            recDiv.className = 'recommendation';
+                            recDiv.textContent = data;
+                            if (resultContainer) resultContainer.appendChild(recDiv);
+                            else addMessage('assistant', `<div class="recommendation">${data}</div>`);
+                            chat.scrollTop = chat.scrollHeight;
+                        } else if (event === 'done') {
+                            chat.querySelectorAll('.message.status').forEach(el => el.remove());
+                            const doneData = JSON.parse(data);
+                            if (window.firebaseLogEvent) window.firebaseLogEvent('search_completed', { elapsed: doneData.elapsed });
+                            const elapsed = document.createElement('div');
+                            elapsed.className = 'elapsed';
+                            elapsed.textContent = `Completed in ${doneData.elapsed}s`;
+                            if (resultContainer) resultContainer.appendChild(elapsed);
+                            chat.scrollTop = chat.scrollHeight;
+                        }
                     }
                 }
             } catch (err) {
                 addMessage('error', 'Connection error. Make sure the server is running.');
             }
-
             isSearching = false;
             sendBtn.disabled = false;
             input.focus();

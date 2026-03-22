@@ -252,7 +252,7 @@ async def chat(request: Request):
             yield _sse("recommendation", ai_recommendation)
             yield _sse("done", json.dumps({"elapsed": round(elapsed, 1)}))
 
-            session["history"].append({"role": "assistant", "content": f"Found {len(ranked_results)} showtimes. {ai_recommendation}"})
+            session["history"].append({"role": "assistant", "content": f"I searched for {correct_movie} near {zipcode} and found {len(ranked_results)} showtimes. {ai_recommendation}"})
 
             best = ranked_results[0] if ranked_results else {}
             best_seats = best.get("seats", [{}])[0] if best.get("seats") else {}
