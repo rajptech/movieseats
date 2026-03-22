@@ -151,8 +151,13 @@ async def chat(request: Request):
 
             correct_movie = movie_info.get("correct_name", movie_raw)
             search_slug = movie_info.get("cinemark_search", movie_raw.lower().replace(" ", "-"))
+            fun_facts = movie_info.get("facts", [])
 
-            logger.info("Web search: '%s' → '%s' (slug: %s)", movie_raw, correct_movie, search_slug)
+            logger.info("Web search: '%s' → '%s' (slug: %s, facts: %d)", movie_raw, correct_movie, search_slug, len(fun_facts))
+
+            # Stream first fun fact immediately
+            if fun_facts:
+                yield _sse("fun_fact", fun_facts[0])
 
             # Build display date
             display_date = "today"
@@ -195,6 +200,10 @@ async def chat(request: Request):
                 total_st = sum(len(t.showtimes) for t in theaters)
                 yield _sse("status", f"Found {len(theaters)} theaters, {total_st} showtimes for {display_date}. Checking seats...")
 
+                # Stream second fun fact while seats are being fetched
+                if len(fun_facts) > 1:
+                    yield _sse("fun_fact", fun_facts[1])
+
                 seat_data = await fetch_all_seat_maps(theaters, context)
                 await browser.close()
 
@@ -203,6 +212,10 @@ async def chat(request: Request):
                 return
 
             elapsed = time.time() - start
+
+            # Stream third fun fact while AI analyzes
+            if len(fun_facts) > 2:
+                yield _sse("fun_fact", fun_facts[2])
 
             # Step 4: Score seats (math) and build results
             all_results = []
@@ -343,11 +356,11 @@ async def _parse_intent(message: str, session: dict) -> dict | None:
 # --- Web Search (Sonnet 4.6 + web_search tool) ---
 
 async def _web_search_movie(movie_raw: str, zipcode: str) -> dict:
-    """Use Claude web search to find correct movie name and nearby theaters."""
+    """Use Claude web search to find correct movie name, fun facts, and nearby theaters."""
     try:
         response = await client.messages.create(
             model=MODEL_SMART,
-            max_tokens=500,
+            max_tokens=800,
             tools=[{
                 "type": "web_search_20260209",
                 "name": "web_search",
@@ -359,11 +372,12 @@ Search the web and tell me:
 1. The correct full movie title (the user may have misspelled it)
 2. The Cinemark URL slug for this movie (like "dhurandhar-the-revenge-hindi-with-english-subtitles")
 3. Is it currently in theaters?
+4. Give me 3 interesting VERIFIED facts about this movie from your search results. Include things like: director, lead actors, box office numbers, ratings, release date, genre, or any interesting trivia. ONLY include facts you found in the search results — do NOT make anything up.
 
 Return ONLY a JSON object:
-{{"correct_name": "Full Movie Title", "cinemark_search": "url-slug-on-cinemark", "in_theaters": true}}
+{{"correct_name": "Full Movie Title", "cinemark_search": "url-slug-on-cinemark", "in_theaters": true, "facts": ["Fact 1 about the movie", "Fact 2 about the movie", "Fact 3 about the movie"]}}
 
-If you can't find the movie, return: {{"correct_name": "{movie_raw}", "cinemark_search": "{movie_raw.lower().replace(' ', '-')}", "in_theaters": false}}"""}],
+If you can't find the movie, return: {{"correct_name": "{movie_raw}", "cinemark_search": "{movie_raw.lower().replace(' ', '-')}", "in_theaters": false, "facts": []}}"""}],
         )
 
         # Extract text from response (may have tool use blocks mixed in)

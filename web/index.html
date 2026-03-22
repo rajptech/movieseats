@@ -121,6 +121,28 @@
             border: 1px solid #fdd;
         }
 
+        .fun-fact {
+            align-self: flex-start;
+            background: #fefce8;
+            border: 1px solid #fef08a;
+            border-radius: 10px;
+            padding: 10px 14px;
+            font-size: 13px;
+            line-height: 1.5;
+            color: #713f12;
+            max-width: 640px;
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        .fun-fact::before {
+            content: '🎬 ';
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
         .results-grid {
             display: flex;
             flex-direction: column;
@@ -448,7 +470,15 @@
                         }
                         if (!event || !data) continue;
 
-                        if (event === 'movies') {
+                        if (event === 'fun_fact') {
+                            // Remove previous fun fact (show one at a time)
+                            chat.querySelectorAll('.fun-fact').forEach(el => el.remove());
+                            const factDiv = document.createElement('div');
+                            factDiv.className = 'fun-fact';
+                            factDiv.textContent = data;
+                            chat.appendChild(factDiv);
+                            chat.scrollTop = chat.scrollHeight;
+                        } else if (event === 'movies') {
                             chat.querySelectorAll('.message.status').forEach(el => el.remove());
                             const movies = JSON.parse(data);
                             let mhtml = '<div class="movie-list">';
@@ -466,6 +496,7 @@
                         } else if (event === 'results') {
                             const results = JSON.parse(data);
                             chat.querySelectorAll('.message.status').forEach(el => el.remove());
+                            chat.querySelectorAll('.fun-fact').forEach(el => el.remove());
                             resultContainer = addMessage('assistant', renderResults(results));
                             resultContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
                         } else if (event === 'recommendation') {
