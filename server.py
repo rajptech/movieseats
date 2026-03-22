@@ -134,8 +134,10 @@ async def chat(request: Request):
             num_seats = parsed.get("seats", 2)
             format_pref = parsed.get("format_pref", "any")
 
+            location_name = parsed.get("location_name", "")
+
             if not zipcode:
-                yield _sse("chat_response", f"I'd love to find seats for {movie_raw}! What's your zipcode?")
+                yield _sse("chat_response", f"I'd love to find seats for {movie_raw}! What's your zipcode or city?")
                 session["last_search"] = parsed
                 session["history"].append({"role": "user", "content": message})
                 return
@@ -144,20 +146,16 @@ async def chat(request: Request):
                 yield _sse("chat_response", "What movie are you looking for?")
                 return
 
-            # Step 2: Web search with Sonnet 4.6 to get correct movie name + nearby theaters
-            yield _sse("status", f"Looking up {movie_raw} near {zipcode}...")
+            # Step 2: Web search with Sonnet 4.6 to get correct movie name
+            location_display = location_name or zipcode
+            yield _sse("status", f"Looking up {movie_raw} near {location_display}...")
 
             movie_info = await _web_search_movie(movie_raw, zipcode)
 
             correct_movie = movie_info.get("correct_name", movie_raw)
             search_slug = movie_info.get("cinemark_search", movie_raw.lower().replace(" ", "-"))
-            fun_facts = movie_info.get("facts", [])
 
-            logger.info("Web search: '%s' → '%s' (slug: %s, facts: %d)", movie_raw, correct_movie, search_slug, len(fun_facts))
-
-            # Stream first fun fact immediately
-            if fun_facts:
-                yield _sse("fun_fact", fun_facts[0])
+            logger.info("Web search: '%s' → '%s' (slug: %s)", movie_raw, correct_movie, search_slug)
 
             # Build display date
             display_date = "today"
@@ -169,7 +167,7 @@ async def chat(request: Request):
                 except Exception:
                     display_date = f"the {date}th"
 
-            yield _sse("status", f"Searching for {correct_movie} near {zipcode} for {display_date}...")
+            yield _sse("status", f"Searching for {correct_movie} near {location_display} for {display_date}...")
 
             # Save search
             session["last_search"] = {**parsed, "movie": correct_movie, "search_slug": search_slug}
@@ -198,11 +196,13 @@ async def chat(request: Request):
                     return
 
                 total_st = sum(len(t.showtimes) for t in theaters)
-                yield _sse("status", f"Found {len(theaters)} theaters, {total_st} showtimes for {display_date}. Checking seats...")
 
-                # Stream second fun fact while seats are being fetched
-                if len(fun_facts) > 1:
-                    yield _sse("fun_fact", fun_facts[1])
+                # Stream live theater progress
+                for t in theaters:
+                    st_count = len(t.showtimes)
+                    yield _sse("theater_progress", json.dumps({"name": t.name, "showtimes": st_count}))
+
+                yield _sse("status", f"Checking seats across {total_st} showtimes...")
 
                 seat_data = await fetch_all_seat_maps(theaters, context)
                 await browser.close()
@@ -212,10 +212,6 @@ async def chat(request: Request):
                 return
 
             elapsed = time.time() - start
-
-            # Stream third fun fact while AI analyzes
-            if len(fun_facts) > 2:
-                yield _sse("fun_fact", fun_facts[2])
 
             # Step 4: Score seats (math) and build results
             all_results = []
@@ -293,16 +289,17 @@ async def chat(request: Request):
 INTENT_SYSTEM = """You parse user messages for a movie seat finder app. Today is {today}.
 
 Return JSON only. Rules:
-- If user wants to find seats for a movie: {{"action":"search","movie":"movie name AS TYPED","zipcode":"5-digit zip or empty","date":"day number or empty","time_pref":"morning|afternoon|evening|all","seats":2,"format_pref":"any|imax|xd|standard|cheapest"}}
+- If user wants to find seats for a movie: {{"action":"search","movie":"movie name AS TYPED","zipcode":"5-digit zip","location_name":"city/area name if given","date":"day number or empty","time_pref":"morning|afternoon|evening|all","seats":2,"format_pref":"any|imax|xd|standard|cheapest"}}
 - If user wants to browse movies: {{"action":"browse","zipcode":"zip"}}
-- If zipcode is missing and needed: {{"action":"need_zipcode","response":"friendly message asking for zipcode","movie":"movie name"}}
+- If no location at all (no zipcode, no city, no area): {{"action":"need_zipcode","response":"friendly message asking for zipcode or city","movie":"movie name"}}
 - If just chatting: {{"action":"chat","response":"helpful response"}}
 - "tomorrow" = day {tomorrow_day}, "today" = day {today_day}
 - Default seats=2, time_pref="evening", format_pref="any"
 - DO NOT correct movie spelling — return exactly what user typed
-- If user gives just a zipcode or city name as follow-up, USE the movie from the previous conversation. The user is continuing their search.
-- If user says "how about morning" or "check Monday" etc, keep the same movie and zipcode from previous conversation and only change what they asked.
-- "near me", "near Plano" without zipcode = ask for zipcode"""
+- CITY NAMES: If user says a city name (Irvine, Frisco, Dallas, Plano, etc), convert it to a zipcode. Common ones: Frisco TX=75035, Plano TX=75024, Allen TX=75013, McKinney TX=75070, Dallas TX=75201, Irvine CA=92614, Los Angeles CA=90001, New York NY=10001, Chicago IL=60601, Houston TX=77001, San Francisco CA=94102. For other cities, use your best knowledge of the main zipcode.
+- If user says "near me" with NO city or zipcode, ask for their zipcode or city.
+- If user gives just a zipcode or city name as follow-up, USE the movie from the previous conversation.
+- If user says "how about morning" or "check Monday" etc, keep the same movie and zipcode from previous conversation and only change what they asked."""
 
 
 async def _parse_intent(message: str, session: dict) -> dict | None:
@@ -372,12 +369,11 @@ Search the web and tell me:
 1. The correct full movie title (the user may have misspelled it)
 2. The Cinemark URL slug for this movie (like "dhurandhar-the-revenge-hindi-with-english-subtitles")
 3. Is it currently in theaters?
-4. Give me 3 interesting VERIFIED facts about this movie from your search results. Include things like: director, lead actors, box office numbers, ratings, release date, genre, or any interesting trivia. ONLY include facts you found in the search results — do NOT make anything up.
 
 Return ONLY a JSON object:
-{{"correct_name": "Full Movie Title", "cinemark_search": "url-slug-on-cinemark", "in_theaters": true, "facts": ["Fact 1 about the movie", "Fact 2 about the movie", "Fact 3 about the movie"]}}
+{{"correct_name": "Full Movie Title", "cinemark_search": "url-slug-on-cinemark", "in_theaters": true}}
 
-If you can't find the movie, return: {{"correct_name": "{movie_raw}", "cinemark_search": "{movie_raw.lower().replace(' ', '-')}", "in_theaters": false, "facts": []}}"""}],
+If you can't find the movie, return: {{"correct_name": "{movie_raw}", "cinemark_search": "{movie_raw.lower().replace(' ', '-')}", "in_theaters": false}}"""}],
         )
 
         # Extract text from response (may have tool use blocks mixed in)

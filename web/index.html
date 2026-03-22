@@ -121,21 +121,30 @@
             border: 1px solid #fdd;
         }
 
-        .fun-fact {
+        .theater-progress {
             align-self: flex-start;
-            background: #fefce8;
-            border: 1px solid #fef08a;
-            border-radius: 10px;
-            padding: 10px 14px;
-            font-size: 13px;
-            line-height: 1.5;
-            color: #713f12;
             max-width: 640px;
-            animation: fadeIn 0.3s ease-in;
+            width: 100%;
         }
 
-        .fun-fact::before {
-            content: '🎬 ';
+        .theater-progress-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 0;
+            font-size: 13px;
+            color: #555;
+            animation: fadeIn 0.2s ease-in;
+        }
+
+        .theater-progress-item .check {
+            color: #16a34a;
+            font-weight: 700;
+        }
+
+        .theater-progress-item .count {
+            color: #999;
+            font-size: 12px;
         }
 
         @keyframes fadeIn {
@@ -470,13 +479,18 @@
                         }
                         if (!event || !data) continue;
 
-                        if (event === 'fun_fact') {
-                            // Remove previous fun fact (show one at a time)
-                            chat.querySelectorAll('.fun-fact').forEach(el => el.remove());
-                            const factDiv = document.createElement('div');
-                            factDiv.className = 'fun-fact';
-                            factDiv.textContent = data;
-                            chat.appendChild(factDiv);
+                        if (event === 'theater_progress') {
+                            const t = JSON.parse(data);
+                            let container = chat.querySelector('.theater-progress');
+                            if (!container) {
+                                container = document.createElement('div');
+                                container.className = 'theater-progress';
+                                chat.appendChild(container);
+                            }
+                            const item = document.createElement('div');
+                            item.className = 'theater-progress-item';
+                            item.innerHTML = `<span class="check">&#10003;</span> ${t.name} <span class="count">${t.showtimes} showtimes</span>`;
+                            container.appendChild(item);
                             chat.scrollTop = chat.scrollHeight;
                         } else if (event === 'movies') {
                             chat.querySelectorAll('.message.status').forEach(el => el.remove());
@@ -496,7 +510,7 @@
                         } else if (event === 'results') {
                             const results = JSON.parse(data);
                             chat.querySelectorAll('.message.status').forEach(el => el.remove());
-                            chat.querySelectorAll('.fun-fact').forEach(el => el.remove());
+                            chat.querySelectorAll('.theater-progress').forEach(el => el.remove());
                             resultContainer = addMessage('assistant', renderResults(results));
                             resultContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
                         } else if (event === 'recommendation') {
