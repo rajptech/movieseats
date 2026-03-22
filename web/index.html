@@ -361,7 +361,13 @@
         const sessionId = 'session_' + Math.random().toString(36).slice(2);
 
         input.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && !isSearching) sendMessage();
+            if (e.key === 'Enter') {
+                if (isSearching) {
+                    e.preventDefault();
+                } else {
+                    sendMessage();
+                }
+            }
         });
 
         function fillExample(el) {

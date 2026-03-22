@@ -254,40 +254,66 @@ async def chat(request: Request):
     return StreamingResponse(stream(), media_type="text/event-stream")
 
 
-# --- Intent Parsing (Haiku 4.5, cheap) ---
+# --- Intent Parsing (Haiku 4.5 + full history + prompt caching) ---
 
-async def _parse_intent(message: str, session: dict) -> dict | None:
-    today = datetime.date.today()
-    tomorrow = today + datetime.timedelta(days=1)
-
-    last = session.get("last_search")
-    context_hint = ""
-    if last:
-        context_hint = f"\nPrevious search context: movie={last.get('movie','')}, zipcode={last.get('zipcode','')}, date={last.get('date','')}, time_pref={last.get('time_pref','')}, seats={last.get('seats','')}"
-
-    try:
-        response = await client.messages.create(
-            model=MODEL_FAST,
-            max_tokens=300,
-            system=f"""You parse user messages for a movie seat finder app. Today is {today.strftime('%A, %B %d, %Y')}.
-{context_hint}
+INTENT_SYSTEM = """You parse user messages for a movie seat finder app. Today is {today}.
 
 Return JSON only. Rules:
 - If user wants to find seats for a movie: {{"action":"search","movie":"movie name AS TYPED","zipcode":"5-digit zip or empty","date":"day number or empty","time_pref":"morning|afternoon|evening|all","seats":2,"format_pref":"any|imax|xd|standard|cheapest"}}
 - If user wants to browse movies: {{"action":"browse","zipcode":"zip"}}
 - If zipcode is missing and needed: {{"action":"need_zipcode","response":"friendly message asking for zipcode","movie":"movie name"}}
 - If just chatting: {{"action":"chat","response":"helpful response"}}
-- "tomorrow" = day {tomorrow.day}, "today" = day {today.day}
+- "tomorrow" = day {tomorrow_day}, "today" = day {today_day}
 - Default seats=2, time_pref="evening", format_pref="any"
 - DO NOT correct movie spelling — return exactly what user typed
-- If user gives just a zipcode as follow-up, merge with previous search context
-- "near me", "near Plano" without zipcode = ask for zipcode""",
-            messages=[{"role": "user", "content": message}],
+- If user gives just a zipcode or city name as follow-up, USE the movie from the previous conversation. The user is continuing their search.
+- If user says "how about morning" or "check Monday" etc, keep the same movie and zipcode from previous conversation and only change what they asked.
+- "near me", "near Plano" without zipcode = ask for zipcode"""
+
+
+async def _parse_intent(message: str, session: dict) -> dict | None:
+    today = datetime.date.today()
+    tomorrow = today + datetime.timedelta(days=1)
+
+    system_text = INTENT_SYSTEM.format(
+        today=today.strftime('%A, %B %d, %Y'),
+        tomorrow_day=tomorrow.day,
+        today_day=today.day,
+    )
+
+    # Build messages: full conversation history + new message
+    messages = []
+    for h in session.get("history", [])[-10:]:  # last 10 turns max
+        messages.append({"role": h["role"], "content": h["content"]})
+    messages.append({"role": "user", "content": message})
+
+    try:
+        # Use prompt caching on system prompt
+        response = await client.messages.create(
+            model=MODEL_FAST,
+            max_tokens=300,
+            system=[{
+                "type": "text",
+                "text": system_text,
+                "cache_control": {"type": "ephemeral"},
+            }],
+            messages=messages,
         )
         text = response.content[0].text.strip()
         if "```" in text:
             text = text.split("```json")[-1].split("```")[0].strip() if "```json" in text else text.split("```")[1].split("```")[0].strip()
-        return json.loads(text)
+
+        parsed = json.loads(text)
+
+        # Python-level merge: if movie is missing but we have it from last search
+        last = session.get("last_search")
+        if last and parsed.get("action") == "search":
+            if not parsed.get("movie") and last.get("movie"):
+                parsed["movie"] = last["movie"]
+            if not parsed.get("zipcode") and last.get("zipcode"):
+                parsed["zipcode"] = last["zipcode"]
+
+        return parsed
     except Exception as e:
         logger.error("Intent parsing failed: %s", e)
         return None
@@ -376,11 +402,16 @@ User prefers: format={format_pref}
 
 Return JSON with two fields:
 1. "ranking": array of numbers (1-indexed) in order from best to worst. Consider: seat quality (score), theater format (IMAX>XD>Standard), price, availability (less crowded = better), showtime convenience.
-2. "recommendation": 2-3 casual sentences about the top pick. Mention specific seats. Be like a friend texting advice.
+2. "recommendation": 2-3 casual sentences. Be like a friend texting advice.
 
-IMPORTANT: If the best available seats are in Row A or B (front rows), mention that most seats are sold out for that showtime and these are the best remaining options. Explain that front rows mean sitting close to the screen. If a showtime has 0 available seats, say it's sold out. If availability is below 20%, warn it's filling up fast.
+CRITICAL RULES for recommendation:
+- NEVER say "option 1" or "option 3" or any number. ALWAYS use the theater name and time instead (e.g., "Cinemark Allen at 7:50 PM").
+- ALWAYS mention the specific seat numbers (e.g., "seats D5, D6").
+- If the best available seats are in Row A or B (front rows), explain most seats are sold out and these front rows are close to the screen.
+- If a showtime has 0 available seats, say it's sold out.
+- If availability is below 20%, warn it's filling up fast.
 
-Example: {{"ranking": [3,1,5,2,4], "recommendation": "Grab E4-E5 at Allen XD 7:50 PM — perfect row depth..."}}"""}],
+Example: {{"ranking": [3,1,5,2,4], "recommendation": "Grab D5-D6 at Cinemark Allen 7:50 PM — great center seats at 57% back with tons of availability. Skip Frisco Square 1 PM, it's completely sold out."}}"""}],
         )
 
         text = response.content[0].text.strip()
