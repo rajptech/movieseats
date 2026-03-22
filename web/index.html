@@ -39,6 +39,7 @@
             height: 100vh;
             display: flex;
             flex-direction: column;
+            overflow-x: hidden;
         }
 
         header {
@@ -326,6 +327,7 @@
 
         /* Mobile */
         @media (max-width: 600px) {
+            * { max-width: 100%; }
             header { padding: 14px 16px; }
             header h1 { font-size: 18px; }
 
@@ -366,8 +368,12 @@
             }
 
             .input-area { padding: 10px 12px; }
-            .input-row input { padding: 10px 14px; font-size: 14px; }
-            .input-row button { padding: 10px 18px; font-size: 13px; }
+            .input-row { max-width: 100%; }
+            .input-row input { padding: 10px 14px; font-size: 14px; min-width: 0; }
+            .input-row button { padding: 10px 16px; font-size: 13px; flex-shrink: 0; }
+
+            .message.user { max-width: 85%; word-break: break-word; }
+            .message.assistant { max-width: 100%; overflow-x: hidden; }
 
             .examples { font-size: 11px; }
 
