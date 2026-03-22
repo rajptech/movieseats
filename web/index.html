@@ -13,7 +13,8 @@
             projectId: "movieseats-app",
             storageBucket: "movieseats-app.firebasestorage.app",
             messagingSenderId: "516464050812",
-            appId: "1:516464050812:web:28ba95f2e6aa67e00a7ff9"
+            appId: "1:516464050812:web:28ba95f2e6aa67e00a7ff9",
+            measurementId: "G-2GW0XBJS1F"
         });
         const analytics = getAnalytics(app);
         window.firebaseLogEvent = (name, params) => logEvent(analytics, name, params || {});
