@@ -88,6 +88,16 @@ async def chat(request: Request):
 
         action = parsed.get("action", "search")
 
+        # Log EVERY interaction
+        await log_search({
+            "type": action,
+            "message": message,
+            "movie": parsed.get("movie", ""),
+            "zipcode": parsed.get("zipcode", ""),
+            "session_id": session_id,
+            "response": parsed.get("response", "")[:200] if action in ("chat", "need_zipcode") else "",
+        })
+
         if action == "chat":
             yield _sse("chat_response", parsed.get("response", ""))
             session["history"].append({"role": "user", "content": message})
@@ -96,7 +106,7 @@ async def chat(request: Request):
 
         if action == "need_zipcode":
             yield _sse("chat_response", parsed.get("response", "What's your zipcode? I need it to find theaters near you."))
-            session["last_search"] = parsed  # Save so follow-up can merge movie name
+            session["last_search"] = parsed
             session["history"].append({"role": "user", "content": message})
             session["history"].append({"role": "assistant", "content": parsed["response"]})
             return
