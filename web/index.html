@@ -407,12 +407,28 @@
         const sessionId = 'session_' + Math.random().toString(36).slice(2);
         const API_URL = window.location.hostname === 'localhost' ? '' : 'https://movieseats-516464050812.us-central1.run.app';
 
-        // Fix mobile viewport height — use window.innerHeight which respects browser chrome
+        // Fix mobile viewport height
         function setViewportHeight() {
             document.body.style.height = window.innerHeight + 'px';
         }
         setViewportHeight();
         window.addEventListener('resize', setViewportHeight);
+
+        // Detect tab suspension — if user leaves and comes back while searching
+        let searchStartTime = 0;
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible' && isSearching && searchStartTime > 0) {
+                const elapsed = (Date.now() - searchStartTime) / 1000;
+                if (elapsed > 120) {
+                    // Search has been running for over 2 minutes — likely timed out
+                    chat.querySelectorAll('.message.status').forEach(el => el.remove());
+                    chat.querySelectorAll('.theater-progress').forEach(el => el.remove());
+                    addMessage('assistant', 'The search may have timed out while you were away. Please try again!');
+                    isSearching = false;
+                    sendBtn.disabled = false;
+                }
+            }
+        });
 
         input.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
@@ -469,6 +485,7 @@
             const text = input.value.trim();
             if (!text || isSearching) return;
             isSearching = true;
+            searchStartTime = Date.now();
             sendBtn.disabled = true;
             input.value = '';
             addMessage('user', text);
@@ -556,9 +573,15 @@
                     }
                 }
             } catch (err) {
-                addMessage('error', 'Connection error. Make sure the server is running.');
+                // Check if it's a tab suspension / timeout issue
+                chat.querySelectorAll('.message.status').forEach(el => el.remove());
+                chat.querySelectorAll('.theater-progress').forEach(el => el.remove());
+                if (!resultContainer) {
+                    addMessage('assistant', 'The search timed out — this can happen if you switch tabs or lose connection. Please try again!');
+                }
             }
             isSearching = false;
+            searchStartTime = 0;
             sendBtn.disabled = false;
             input.focus();
         }
