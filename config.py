@@ -5,14 +5,17 @@ load_dotenv()
 
 # Claude API
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-CLAUDE_MODEL = "claude-sonnet-4-20250514"
+
+# Models — use latest as of March 2026
+MODEL_FAST = "claude-haiku-4-5-20251001"    # Intent parsing, recommendations ($1/$5 MTok)
+MODEL_SMART = "claude-sonnet-4-6"           # Web search, complex reasoning ($3/$15 MTok)
 
 # Browser
-HEADLESS = os.getenv("HEADLESS", "false").lower() == "true"
+HEADLESS = os.getenv("HEADLESS", "true").lower() == "true"
 PAGE_LOAD_TIMEOUT_MS = 15000
 SCREENSHOT_DELAY_MS = 1500
 
-# Agent loop
+# Agent loop (legacy v1)
 MAX_AGENT_STEPS = 35
 
 # Seat scoring weights

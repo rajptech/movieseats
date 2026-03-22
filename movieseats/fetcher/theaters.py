@@ -52,7 +52,9 @@ async def find_theaters_and_showtimes(
     theaters: list[TheaterInfo] = []
 
     try:
-        # Step 1: Find movie slug
+        # Step 1: Find movie slug on Cinemark
+        # The AI has already corrected the movie name via web search,
+        # so we just need to find it on Cinemark's page
         await page.goto(f"{CINEMARK_BASE}/movies", wait_until="domcontentloaded", timeout=15000)
         await page.wait_for_timeout(1500)
 
@@ -62,22 +64,6 @@ async def find_theaters_and_showtimes(
             const words = nameLower.split(/\s+/).filter(w => w.length > 2);
             const skip = ['movies', 'book-now', ''];
 
-            // Helper: simple similarity score (0-1)
-            function similarity(a, b) {
-                a = a.toLowerCase(); b = b.toLowerCase();
-                if (a === b) return 1;
-                if (a.includes(b) || b.includes(a)) return 0.9;
-                // Count matching characters
-                let matches = 0;
-                const shorter = a.length < b.length ? a : b;
-                const longer = a.length < b.length ? b : a;
-                for (let i = 0; i < shorter.length; i++) {
-                    if (longer.includes(shorter[i])) matches++;
-                }
-                return matches / longer.length;
-            }
-
-            // Collect all movie slugs with their text
             const movies = [];
             const seen = new Set();
             links.forEach(link => {
@@ -85,44 +71,32 @@ async def find_theaters_and_showtimes(
                 if (!match || skip.includes(match[1]) || seen.has(match[1])) return;
                 seen.add(match[1]);
                 const text = link.innerText.toLowerCase().trim();
+                const imgAlt = link.querySelector('img')?.alt?.toLowerCase() || '';
                 const slug = match[1];
-                movies.push({ slug, text, href: slug.replace(/-/g, ' ') });
+                const slugText = slug.replace(/-/g, ' ');
+                movies.push({ slug, text, imgAlt, slugText });
             });
 
-            // Pass 1: Exact substring match
+            // Pass 1: Exact match on slug or text
             for (const m of movies) {
-                if (m.text.includes(nameLower) || m.href.includes(nameLower)) return m.slug;
+                if (m.text.includes(nameLower) || m.slugText.includes(nameLower) || m.imgAlt.includes(nameLower)) return m.slug;
             }
 
-            // Pass 2: Word match — any word > 3 chars matches text or slug
+            // Pass 2: Any word > 3 chars matches
             for (const m of movies) {
                 for (const word of words) {
-                    if (word.length > 3 && (m.text.includes(word) || m.href.includes(word))) return m.slug;
+                    if (word.length > 3 && (m.text.includes(word) || m.slugText.includes(word) || m.imgAlt.includes(word))) return m.slug;
                 }
             }
-
-            // Pass 3: Fuzzy match — find best similarity score
-            let bestSlug = null, bestScore = 0;
-            for (const m of movies) {
-                const s1 = similarity(nameLower, m.text);
-                const s2 = similarity(nameLower, m.href);
-                const score = Math.max(s1, s2);
-                if (score > bestScore) {
-                    bestScore = score;
-                    bestSlug = m.slug;
-                }
-            }
-            // Accept if similarity > 50%
-            if (bestScore > 0.5) return bestSlug;
 
             return null;
         }""", movie_name)
 
         if not movie_slug:
-            logger.error("Movie not found: %s", movie_name)
+            logger.error("Movie not found on Cinemark: %s", movie_name)
             return []
 
-        logger.info("Found movie: %s", movie_slug)
+        logger.info("Found movie slug: %s", movie_slug)
 
         # Step 2: Go to movie page
         await page.goto(f"{CINEMARK_BASE}/movies/{movie_slug}", wait_until="domcontentloaded", timeout=15000)
