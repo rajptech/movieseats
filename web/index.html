@@ -462,15 +462,19 @@
                     if (done) break;
 
                     buffer += decoder.decode(value, { stream: true });
-                    const lines = buffer.split('\n');
-                    buffer = lines.pop();
 
-                    let event = '', data = '';
-                    for (const line of lines) {
-                        if (line.startsWith('event: ')) {
-                            event = line.slice(7);
-                        } else if (line.startsWith('data: ')) {
-                            data = line.slice(6);
+                    // SSE messages are separated by double newlines
+                    const messages = buffer.split('\n\n');
+                    buffer = messages.pop(); // keep incomplete message in buffer
+
+                    for (const msg of messages) {
+                        if (!msg.trim()) continue;
+                        let event = '', data = '';
+                        for (const line of msg.split('\n')) {
+                            if (line.startsWith('event: ')) event = line.slice(7);
+                            else if (line.startsWith('data: ')) data = line.slice(6);
+                        }
+                        if (!event || !data) continue;
 
                             if (event === 'movies') {
                                 chat.querySelectorAll('.message.status').forEach(el => el.remove());
@@ -529,10 +533,6 @@
                                 if (resultContainer) resultContainer.appendChild(elapsed);
                                 chat.scrollTop = chat.scrollHeight;
                             }
-
-                            event = '';
-                            data = '';
-                        }
                     }
                 }
             } catch (err) {
