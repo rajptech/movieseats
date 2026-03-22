@@ -1,0 +1,10 @@
+.env
+__pycache__/
+*.pyc
+screenshots/
+.venv/
+.pytest_cache/
+.claude/
+node_modules/
+*.log
+/tmp/
