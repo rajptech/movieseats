@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>MovieSeats</title>
     <!-- Firebase -->
     <script type="module">
@@ -20,75 +20,76 @@
 
         const app = initializeApp(firebaseConfig);
         const analytics = getAnalytics(app);
-
-        // Make logEvent available globally
         window.firebaseLogEvent = (name, params) => logEvent(analytics, name, params || {});
-
-        // Log page view
         logEvent(analytics, 'page_view');
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
-        body {
+        html, body {
+            width: 100%;
+            max-width: 100vw;
+            overflow-x: hidden;
             font-family: 'Inter', -apple-system, sans-serif;
             background: #fafafa;
             color: #1a1a1a;
-            height: 100vh;
+            height: 100%;
+            -webkit-text-size-adjust: 100%;
+        }
+
+        body {
             display: flex;
             flex-direction: column;
-            overflow-x: hidden;
         }
 
         header {
-            padding: 20px 24px;
+            padding: 16px 20px;
             border-bottom: 1px solid #e5e5e5;
             background: white;
+            flex-shrink: 0;
         }
 
-        header h1 {
-            font-size: 20px;
-            font-weight: 700;
-            letter-spacing: -0.5px;
-        }
-
-        header p {
-            font-size: 13px;
-            color: #888;
-            margin-top: 2px;
-        }
+        header h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.5px; }
+        header p { font-size: 13px; color: #888; margin-top: 2px; }
 
         .chat-container {
             flex: 1;
             overflow-y: auto;
-            padding: 24px;
+            overflow-x: hidden;
+            padding: 16px;
             display: flex;
             flex-direction: column;
-            gap: 16px;
+            gap: 12px;
+            -webkit-overflow-scrolling: touch;
         }
 
         .message {
             max-width: 640px;
             line-height: 1.6;
             font-size: 15px;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
         }
 
         .message.user {
             align-self: flex-end;
             background: #1a1a1a;
             color: white;
-            padding: 12px 18px;
+            padding: 10px 16px;
             border-radius: 18px 18px 4px 18px;
+            max-width: 80%;
         }
 
         .message.assistant {
             align-self: flex-start;
             background: white;
-            padding: 16px 20px;
+            padding: 14px 16px;
             border-radius: 4px 18px 18px 18px;
             border: 1px solid #e5e5e5;
+            width: 100%;
+            max-width: 640px;
         }
 
         .message.status {
@@ -118,10 +119,11 @@
             align-self: flex-start;
             color: #c00;
             font-size: 14px;
-            padding: 12px 18px;
+            padding: 12px 16px;
             background: #fff5f5;
             border-radius: 8px;
             border: 1px solid #fdd;
+            max-width: 100%;
         }
 
         .results-grid {
@@ -135,11 +137,10 @@
             background: #f7f7f7;
             border: 1px solid #eee;
             border-radius: 10px;
-            padding: 14px 16px;
+            padding: 12px 14px;
             display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            gap: 12px;
+            flex-direction: column;
+            gap: 8px;
         }
 
         .seat-card.top-pick {
@@ -147,58 +148,52 @@
             border-color: #bbf7d0;
         }
 
-        .seat-card .theater-info {
-            flex: 1;
-            min-width: 0;
-        }
-
         .seat-card .theater-name {
             font-weight: 600;
-            font-size: 14px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            font-size: 15px;
+            line-height: 1.3;
         }
 
         .seat-card .showtime {
             font-size: 13px;
             color: #666;
             margin-top: 2px;
+            line-height: 1.4;
         }
 
-        .seat-card .seat-info {
-            text-align: right;
-            flex-shrink: 0;
-            min-width: 70px;
+        .seat-card .availability {
+            font-size: 12px;
+        }
+
+        .seat-card .seat-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
         }
 
         .seat-card .seat-numbers {
             font-weight: 700;
-            font-size: 16px;
+            font-size: 18px;
             color: #16a34a;
         }
 
         .seat-card .seat-score {
-            font-size: 11px;
-            color: #888;
-            margin-top: 2px;
-        }
-
-        .seat-card .availability {
             font-size: 12px;
             color: #888;
         }
 
         .seat-card .buy-link {
             display: inline-block;
-            margin-top: 6px;
-            font-size: 12px;
+            margin-top: 4px;
+            font-size: 13px;
             font-weight: 600;
             color: #1a1a1a;
             text-decoration: none;
             background: #e5e5e5;
-            padding: 4px 12px;
-            border-radius: 12px;
+            padding: 8px 16px;
+            border-radius: 20px;
+            text-align: center;
         }
 
         .seat-card.top-pick .buy-link {
@@ -206,15 +201,12 @@
             color: white;
         }
 
-        .seat-card .buy-link:hover {
-            opacity: 0.8;
-        }
+        .seat-card .buy-link:hover { opacity: 0.8; }
 
         .seat-card .seat-hint {
             font-size: 12px;
             color: #888;
-            margin-top: 8px;
-            line-height: 1.5;
+            line-height: 1.4;
         }
 
         .recommendation {
@@ -222,50 +214,43 @@
             border: 1px solid #e5e5e5;
             border-left: 3px solid #16a34a;
             border-radius: 4px 8px 8px 4px;
-            padding: 14px 18px;
+            padding: 12px 14px;
             margin-top: 8px;
             font-size: 14px;
             line-height: 1.7;
         }
 
-        .parsed-info {
-            font-size: 12px;
-            color: #888;
-            margin-bottom: 4px;
-        }
-
         .input-area {
-            padding: 16px 24px;
+            padding: 12px 16px;
             border-top: 1px solid #e5e5e5;
             background: white;
+            flex-shrink: 0;
         }
 
         .input-row {
             display: flex;
-            gap: 10px;
+            gap: 8px;
+            width: 100%;
             max-width: 640px;
         }
 
         .input-row input {
             flex: 1;
-            padding: 12px 18px;
+            min-width: 0;
+            padding: 12px 16px;
             border: 1px solid #ddd;
             border-radius: 24px;
             font-family: 'Inter', sans-serif;
             font-size: 15px;
             outline: none;
+            -webkit-appearance: none;
         }
 
-        .input-row input:focus {
-            border-color: #999;
-        }
-
-        .input-row input::placeholder {
-            color: #bbb;
-        }
+        .input-row input:focus { border-color: #999; }
+        .input-row input::placeholder { color: #bbb; }
 
         .input-row button {
-            padding: 12px 24px;
+            padding: 12px 20px;
             background: #1a1a1a;
             color: white;
             border: none;
@@ -274,21 +259,18 @@
             font-size: 14px;
             font-weight: 600;
             cursor: pointer;
+            flex-shrink: 0;
+            -webkit-appearance: none;
         }
 
-        .input-row button:hover {
-            background: #333;
-        }
-
-        .input-row button:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-        }
+        .input-row button:hover { background: #333; }
+        .input-row button:disabled { background: #ccc; cursor: not-allowed; }
 
         .examples {
             margin-top: 8px;
-            font-size: 12px;
+            font-size: 11px;
             color: #aaa;
+            line-height: 1.6;
         }
 
         .examples span {
@@ -297,95 +279,18 @@
             text-decoration-color: #ddd;
         }
 
-        .examples span:hover {
-            color: #666;
-        }
+        .examples span:hover { color: #666; }
 
         .welcome {
             text-align: center;
-            padding: 60px 20px;
+            padding: 60px 16px;
             color: #888;
         }
 
-        .welcome h2 {
-            font-size: 24px;
-            font-weight: 700;
-            color: #1a1a1a;
-            margin-bottom: 8px;
-        }
+        .welcome h2 { font-size: 22px; font-weight: 700; color: #1a1a1a; margin-bottom: 8px; }
+        .welcome p { font-size: 15px; line-height: 1.6; }
 
-        .welcome p {
-            font-size: 15px;
-            line-height: 1.6;
-        }
-
-        .elapsed {
-            font-size: 12px;
-            color: #aaa;
-            margin-top: 8px;
-        }
-
-        /* Mobile */
-        @media (max-width: 600px) {
-            * { max-width: 100%; }
-            header { padding: 14px 16px; }
-            header h1 { font-size: 18px; }
-
-            .chat-container { padding: 12px; gap: 12px; }
-
-            .message { max-width: 100%; font-size: 14px; }
-            .message.user { padding: 10px 14px; }
-            .message.assistant { padding: 12px 14px; }
-
-            .seat-card {
-                flex-direction: column;
-                gap: 8px;
-                padding: 12px 14px;
-            }
-
-            .seat-card .theater-name {
-                white-space: normal;
-                font-size: 15px;
-            }
-
-            .seat-card .seat-info {
-                text-align: left;
-                display: flex;
-                align-items: center;
-                gap: 10px;
-            }
-
-            .seat-card .seat-numbers {
-                font-size: 18px;
-            }
-
-            .seat-card .seat-score {
-                font-size: 12px;
-            }
-
-            .seat-card .seat-hint {
-                font-size: 11px;
-            }
-
-            .input-area { padding: 10px 12px; }
-            .input-row { max-width: 100%; }
-            .input-row input { padding: 10px 14px; font-size: 14px; min-width: 0; }
-            .input-row button { padding: 10px 16px; font-size: 13px; flex-shrink: 0; }
-
-            .message.user { max-width: 85%; word-break: break-word; }
-            .message.assistant { max-width: 100%; overflow-x: hidden; }
-
-            .examples { font-size: 11px; }
-
-            .recommendation { padding: 12px 14px; font-size: 13px; }
-
-            .welcome { padding: 40px 16px; }
-            .welcome h2 { font-size: 20px; }
-            .welcome p { font-size: 14px; }
-
-            .movie-list { gap: 6px; }
-            .movie-chip { padding: 6px 12px; font-size: 12px; }
-        }
+        .elapsed { font-size: 12px; color: #aaa; margin-top: 8px; }
 
         .movie-list {
             display: flex;
@@ -398,15 +303,27 @@
             background: #f0f0f0;
             border: 1px solid #e0e0e0;
             border-radius: 20px;
-            padding: 8px 16px;
+            padding: 8px 14px;
             font-size: 13px;
             font-weight: 500;
             cursor: pointer;
             transition: background 0.15s;
         }
 
-        .movie-chip:hover {
-            background: #e0e0e0;
+        .movie-chip:hover { background: #e0e0e0; }
+
+        /* Desktop: side-by-side seat card layout */
+        @media (min-width: 601px) {
+            .seat-card {
+                flex-direction: row;
+                align-items: flex-start;
+            }
+            .seat-card .theater-info { flex: 1; min-width: 0; }
+            .seat-card .seat-row {
+                flex-direction: column;
+                align-items: flex-end;
+                min-width: 80px;
+            }
         }
     </style>
 </head>
@@ -425,14 +342,14 @@
 
     <div class="input-area">
         <div class="input-row">
-            <input type="text" id="input" placeholder="e.g. Dhurandhar tomorrow evening near 75035, 2 tickets" autofocus>
+            <input type="text" id="input" placeholder="e.g. Dhurandhar 75035, 2 tickets" autofocus>
             <button id="send" onclick="sendMessage()">Send</button>
         </div>
         <div class="examples">
             Try:
             <span onclick="fillExample(this)">Dhurandhar tomorrow evening near 75035</span> &middot;
-            <span onclick="fillExample(this)">Project Hail Mary morning shows near Plano, 3 tickets</span> &middot;
-            <span onclick="fillExample(this)">what's available for Hoppers near 90001?</span>
+            <span onclick="fillExample(this)">Project Hail Mary morning 75024, 3 tickets</span> &middot;
+            <span onclick="fillExample(this)">what's playing near 90001?</span>
         </div>
     </div>
 
@@ -453,23 +370,17 @@
         }
 
         function pickMovie(el) {
-            if (window.firebaseLogEvent) {
-                firebaseLogEvent('movie_picked', { movie: el.textContent });
-            }
+            if (window.firebaseLogEvent) firebaseLogEvent('movie_picked', { movie: el.textContent });
             input.value = el.textContent;
             sendMessage();
         }
 
         function addMessage(type, content) {
-            // Remove welcome message
             const welcome = chat.querySelector('.welcome');
             if (welcome) welcome.remove();
-
-            // Remove existing status messages
             if (type === 'status') {
                 chat.querySelectorAll('.message.status').forEach(el => el.remove());
             }
-
             const div = document.createElement('div');
             div.className = `message ${type}`;
             div.innerHTML = content;
@@ -488,21 +399,22 @@
 
                 const pct = Math.round((r.available / r.total) * 100);
                 const availColor = pct > 50 ? '#16a34a' : pct > 20 ? '#ca8a04' : '#dc2626';
-
-                const priceStr = r.price ? `$${r.price.toFixed(2)}` : '';
+                const priceStr = r.price ? ` · $${r.price.toFixed(2)}` : '';
 
                 html += `
                     <div class="seat-card ${isTop ? 'top-pick' : ''}">
                         <div class="theater-info">
                             <div class="theater-name">${isTop ? '&#9733; ' : ''}${r.theater}</div>
-                            <div class="showtime">${r.date ? r.date + ' &middot; ' : ''}${r.time} &middot; ${r.format}${priceStr ? ' &middot; ' + priceStr : ''}</div>
+                            <div class="showtime">${r.date ? r.date + ' · ' : ''}${r.time} · ${r.format}${priceStr}</div>
                             <div class="availability" style="color: ${availColor}">${r.available}/${r.total} seats available</div>
+                            <div class="seat-row">
+                                <div>
+                                    <span class="seat-numbers">${best.labels}</span>
+                                    <span class="seat-score">${best.reasoning.split('—')[1] || ''}</span>
+                                </div>
+                            </div>
                             ${r.url ? `<a class="buy-link" href="${r.url}" target="_blank" onclick="if(window.firebaseLogEvent)firebaseLogEvent('buy_click',{theater:'${r.theater.replace(/'/g,'')}',time:'${r.time}',seats:'${best.labels}'})">Select Seats &rarr;</a>` : ''}
                             ${isTop ? `<div class="seat-hint">On Cinemark's page, look for Row ${best.labels.charAt(0)}, seats ${best.labels.replace(/[A-Z]/g, '').replace(/, /g, ' and ')}</div>` : ''}
-                        </div>
-                        <div class="seat-info">
-                            <div class="seat-numbers">${best.labels}</div>
-                            <div class="seat-score">${best.reasoning.split('—')[1] || ''}</div>
                         </div>
                     </div>`;
             });
@@ -518,13 +430,9 @@
             isSearching = true;
             sendBtn.disabled = true;
             input.value = '';
-
             addMessage('user', text);
 
-            // Log search event to Firebase
-            if (window.firebaseLogEvent) {
-                window.firebaseLogEvent('search_started', { query: text });
-            }
+            if (window.firebaseLogEvent) window.firebaseLogEvent('search_started', { query: text });
 
             try {
                 const response = await fetch('/api/chat', {
@@ -556,23 +464,24 @@
                             if (event === 'movies') {
                                 chat.querySelectorAll('.message.status').forEach(el => el.remove());
                                 const movies = JSON.parse(data);
-                                let html = '<div class="movie-list">';
+                                let mhtml = '<div class="movie-list">';
                                 movies.slice(0, 20).forEach(m => {
-                                    html += `<span class="movie-chip" onclick="pickMovie(this)">${m.name}</span>`;
+                                    mhtml += `<span class="movie-chip" onclick="pickMovie(this)">${m.name}</span>`;
                                 });
-                                html += '</div>';
-                                addMessage('assistant', html);
+                                mhtml += '</div>';
+                                addMessage('assistant', mhtml);
                             } else if (event === 'chat_response') {
                                 chat.querySelectorAll('.message.status').forEach(el => el.remove());
                                 addMessage('assistant', data);
                             } else if (event === 'status') {
                                 addMessage('status', data);
                             } else if (event === 'error') {
+                                chat.querySelectorAll('.message.status').forEach(el => el.remove());
                                 addMessage('error', data);
                             } else if (event === 'parsed') {
                                 const p = JSON.parse(data);
                                 const dateStr = p.date ? `date: ${p.date}` : 'today';
-                                addMessage('status', `Searching: ${p.movie} near ${p.zipcode} &middot; ${dateStr} &middot; ${p.time_pref} &middot; ${p.seats} seats`);
+                                addMessage('status', `Searching: ${p.movie} near ${p.zipcode} · ${dateStr} · ${p.time_pref} · ${p.seats} seats`);
                                 if (window.firebaseLogEvent) {
                                     window.firebaseLogEvent('search_parsed', {
                                         movie: p.movie, zipcode: p.zipcode,
@@ -582,11 +491,9 @@
                                 }
                             } else if (event === 'results') {
                                 const results = JSON.parse(data);
-                                // Remove status messages
                                 chat.querySelectorAll('.message.status').forEach(el => el.remove());
                                 resultContainer = addMessage('assistant', renderResults(results));
                             } else if (event === 'recommendation') {
-                                // Remove all status messages
                                 chat.querySelectorAll('.message.status').forEach(el => el.remove());
                                 const recDiv = document.createElement('div');
                                 recDiv.className = 'recommendation';
@@ -598,7 +505,6 @@
                                 }
                                 chat.scrollTop = chat.scrollHeight;
                             } else if (event === 'done') {
-                                // Clean up any remaining status messages
                                 chat.querySelectorAll('.message.status').forEach(el => el.remove());
                                 const doneData = JSON.parse(data);
                                 if (window.firebaseLogEvent) {
@@ -607,9 +513,7 @@
                                 const elapsed = document.createElement('div');
                                 elapsed.className = 'elapsed';
                                 elapsed.textContent = `Completed in ${doneData.elapsed}s`;
-                                if (resultContainer) {
-                                    resultContainer.appendChild(elapsed);
-                                }
+                                if (resultContainer) resultContainer.appendChild(elapsed);
                                 chat.scrollTop = chat.scrollHeight;
                             }
 
