@@ -252,7 +252,13 @@ async def chat(request: Request):
             yield _sse("recommendation", ai_recommendation)
             yield _sse("done", json.dumps({"elapsed": round(elapsed, 1)}))
 
-            session["history"].append({"role": "assistant", "content": f"I searched for {correct_movie} near {zipcode} and found {len(ranked_results)} showtimes. {ai_recommendation}"})
+            # Save EVERYTHING to history — full results so follow-ups have complete context
+            full_response = f"Search: {correct_movie} near {zipcode}, {display_date}, {time_pref}, {num_seats} seats, format={format_pref}\n\nResults:\n"
+            for r in ranked_results:
+                best = r["seats"][0] if r["seats"] else {}
+                full_response += f"- {r['theater']} | {r.get('date','')} {r['time']} | {r['format']} | ${r.get('price',0):.2f} | {r['available']}/{r['total']} seats | Best: {best.get('labels','sold out')} (score {best.get('score',0):.2f})\n"
+            full_response += f"\nRecommendation: {ai_recommendation}"
+            session["history"].append({"role": "assistant", "content": full_response})
 
             best = ranked_results[0] if ranked_results else {}
             best_seats = best.get("seats", [{}])[0] if best.get("seats") else {}
