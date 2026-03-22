@@ -124,15 +124,54 @@ async def chat(request: Request):
             return
 
         if action == "need_zipcode":
-            yield _sse("chat_response", parsed.get("response", "What's your zipcode? I need it to find theaters near you."))
+            yield _sse("chat_response", parsed.get("response", "What's your zipcode or city? I need it to find theaters near you."))
             session["last_search"] = parsed
             session["history"].append({"role": "user", "content": message})
             session["history"].append({"role": "assistant", "content": parsed["response"]})
             return
 
-        # Browse feature disabled for now — movie list includes coming soon / past movies
-        # if action == "browse":
-        #     ...
+        if action == "info":
+            # Use web search to answer questions about movies, theaters, genres, actors, etc.
+            yield _sse("status", "Looking that up...")
+            query = parsed.get("query", message)
+            zipcode = parsed.get("zipcode", "")
+            location = parsed.get("location_name", "")
+
+            try:
+                response = await client.messages.create(
+                    model=MODEL_SMART,
+                    max_tokens=600,
+                    tools=[{
+                        "type": "web_search_20260209",
+                        "name": "web_search",
+                        "max_uses": 3,
+                    }],
+                    messages=[{"role": "user", "content": f"""Answer this question about movies/theaters. Be helpful and concise (3-5 sentences max).
+If the user is asking about what's playing, genres, actors, or showtimes, search for current information.
+If you find specific movies, suggest the user can type the movie name with their zipcode to find the best seats.
+Location context: {location or zipcode or 'not specified'}
+
+Question: {query}"""}],
+                )
+
+                answer = ""
+                for block in response.content:
+                    if hasattr(block, "text"):
+                        answer = block.text.strip()
+
+                if not answer:
+                    answer = "I couldn't find that information. Try asking about a specific movie with your zipcode!"
+
+            except Exception as e:
+                logger.error("Info query failed: %s", e)
+                answer = "I had trouble looking that up. Try asking about a specific movie with your zipcode!"
+
+            yield _sse("chat_response", answer)
+            session["history"].append({"role": "user", "content": message})
+            session["history"].append({"role": "assistant", "content": answer})
+            return
+
+        # Browse feature disabled — handled by info action now
         if action == "browse":
             yield _sse("chat_response", "Tell me the movie name and your zipcode or city, and I'll find the best seats for you!")
             session["history"].append({"role": "user", "content": message})
@@ -146,6 +185,7 @@ async def chat(request: Request):
             time_pref = parsed.get("time_pref", "evening")
             num_seats = parsed.get("seats", 2)
             format_pref = parsed.get("format_pref", "any")
+            seat_pref = parsed.get("seat_pref", "best")
 
             location_name = parsed.get("location_name", "")
 
@@ -269,7 +309,7 @@ async def chat(request: Request):
             yield _sse("status", f"Scanned {len(all_results)} showtimes in {elapsed:.0f}s. AI picking best seats...")
 
             ranked_results, ai_recommendation = await _ai_rank_and_recommend(
-                all_results, correct_movie, num_seats, format_pref, zipcode
+                all_results, correct_movie, num_seats, format_pref, zipcode, seat_pref
             )
 
             # Save results to session so fallback endpoint can serve them
@@ -309,20 +349,44 @@ async def chat(request: Request):
 
 INTENT_SYSTEM = """You parse user messages for a movie seat finder app. Today is {today}.
 
-Return JSON only. Rules:
-- If user wants to find seats for a movie: {{"action":"search","movie":"movie name AS TYPED","zipcode":"5-digit zip","location_name":"city/area name if given","date":"day number or empty","time_pref":"morning|afternoon|evening|all","seats":2,"format_pref":"any|imax|xd|standard|cheapest"}}
-- If user asks "what's playing" or wants to browse movies, respond with chat: {{"action":"chat","response":"Tell me the movie name and your zipcode or city, and I'll find the best seats for you!"}}
-- If user types just a movie name with no location: {{"action":"need_zipcode","response":"I'd love to find seats for [movie]! What's your zipcode or city?","movie":"movie name"}}
-- If no location at all (no zipcode, no city, no area): {{"action":"need_zipcode","response":"friendly message asking for zipcode or city","movie":"movie name"}}
-- If just chatting: {{"action":"chat","response":"helpful response"}}
+Return JSON only. There are 3 possible actions:
+
+ACTION 1 - SEARCH (find best seats for a movie):
+{{"action":"search","movie":"movie name AS TYPED","zipcode":"5-digit zip","location_name":"city/area name","date":"day number or empty","time_pref":"morning|afternoon|evening|all","seats":2,"format_pref":"any|imax|xd|standard|cheapest","seat_pref":"best|back|front|aisle|center"}}
+
+ACTION 2 - INFO (answer a question using web search — about movies, theaters, genres, actors, logistics, pricing):
+{{"action":"info","query":"the user's question to research","zipcode":"zip if mentioned","location_name":"city if mentioned"}}
+
+ACTION 3 - NEED ZIPCODE (movie given but no location):
+{{"action":"need_zipcode","response":"friendly message asking for zipcode or city","movie":"movie name"}}
+
+ROUTING RULES:
+- "Dhurandhar 75035" → search (movie + location = find seats)
+- "Dhurandhar" alone → need_zipcode
+- "What's playing near 75035?" → info (browse movies)
+- "Any action movies near Frisco?" → info (genre search)
+- "What Sunny Deol movies are playing?" → info (actor search)
+- "What's showing at Cinemark Frisco tonight?" → info (theater search)
+- "Any 9 PM shows near 75035?" → info (time search)
+- "How much are tickets for Dhurandhar?" → info (pricing, include zipcode if in conversation)
+- "Where is Cinemark West Plano?" → info (logistics)
+- "Is Dhurandhar still in theaters?" → info
+- "Compare 7 PM vs 9 PM" → use previous search context, do a search with time_pref="all"
+- "Back row seats for Dhurandhar 75035" → search with seat_pref="back"
+- "Aisle seats" → search with seat_pref="aisle" (use previous movie/zip)
+- "Cheapest option" → search with format_pref="cheapest"
+- "IMAX showing" → search with format_pref="imax"
+- "Hi", "thanks", greetings → info with friendly response query
+
+IMPORTANT RULES:
 - "tomorrow" = day {tomorrow_day}, "today" = day {today_day}
-- Default seats=2, time_pref="evening", format_pref="any"
+- Default: seats=2, time_pref="evening", format_pref="any", seat_pref="best"
 - DO NOT correct movie spelling — return exactly what user typed
-- ANY 5-digit number is a valid US zipcode. NEVER say a zipcode is invalid. Just use it as-is.
-- CITY NAMES: If user says a city name (Irvine, Frisco, Dallas, etc), convert it to a zipcode. Common ones: Frisco TX=75035, Plano TX=75024, Allen TX=75013, McKinney TX=75070, Dallas TX=75201, Irvine CA=92614, Los Angeles CA=90001, New York NY=10001, Chicago IL=60601, Houston TX=77001, San Francisco CA=94102, Dublin CA=94568, Sunnyvale CA=94086. For other cities, use your best knowledge of the main zipcode.
-- If user says "near me" with NO city or zipcode, ask for their zipcode or city.
-- If user gives just a zipcode or city name as follow-up, USE the movie from the previous conversation.
-- If user says "how about morning" or "check Monday" etc, keep the same movie and zipcode from previous conversation and only change what they asked."""
+- ANY 5-digit number is a valid US zipcode. NEVER reject a zipcode.
+- CITY NAMES → convert to zipcode. Common: Frisco=75035, Plano=75024, Allen=75013, McKinney=75070, Dallas=75201, Irvine=92614, LA=90001, NYC=10001, Chicago=60601, Houston=77001, SF=94102, Dublin CA=94568, Sunnyvale=94086.
+- "near me" with NO city/zipcode → need_zipcode
+- Follow-ups: use previous movie/zipcode from conversation history
+- "how about morning" / "check Monday" / "3 tickets" → search, keep previous context, change only what they asked"""
 
 
 async def _parse_intent(message: str, session: dict) -> dict | None:
@@ -427,7 +491,7 @@ If you can't find the movie, return: {{"correct_name": "{movie_raw}", "cinemark_
 # --- AI Ranking + Recommendation (Haiku 4.5) ---
 
 async def _ai_rank_and_recommend(
-    results: list, movie: str, num_seats: int, format_pref: str, zipcode: str,
+    results: list, movie: str, num_seats: int, format_pref: str, zipcode: str, seat_pref: str = "best",
 ) -> tuple[list, str]:
     """AI ranks all results and gives recommendation."""
 
@@ -450,7 +514,8 @@ async def _ai_rank_and_recommend(
             model=MODEL_FAST,
             max_tokens=400,
             messages=[{"role": "user", "content": f"""You're a movie seat advisor. Rank these options for "{movie}" ({num_seats} seats) near {zipcode}.
-User prefers: format={format_pref}
+User prefers: format={format_pref}, seat preference={seat_pref}
+(seat_pref: best=optimal viewing, back=back rows, front=front rows, aisle=edge seats, center=dead center)
 
 {summary}
 
