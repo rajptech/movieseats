@@ -147,8 +147,17 @@ async def chat(request: Request):
                         "max_uses": 3,
                     }],
                     messages=[{"role": "user", "content": f"""Answer this question about movies/theaters. Be helpful and concise (3-5 sentences max).
-If the user is asking about what's playing, genres, actors, or showtimes, search for current information.
-If you find specific movies, suggest the user can type the movie name with their zipcode to find the best seats.
+
+IMPORTANT RULES:
+- Do NOT use markdown links like [text](url). Just write plain text.
+- Do NOT say "check Fandango" or redirect to other websites. YOU are the movie expert.
+- If asking what's playing, search and list actual movie names currently in theaters.
+- If asking about a genre, search and list specific movies of that genre in theaters now.
+- If asking about an actor, search for their current movies in theaters.
+- After listing movies, say: "Want me to find the best seats? Just type the movie name!"
+- If asking about a specific theater, search for its showtimes and movies.
+- If asking about pricing or logistics, give a direct answer.
+
 Location context: {location or zipcode or 'not specified'}
 
 Question: {query}"""}],
