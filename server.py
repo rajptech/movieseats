@@ -69,6 +69,22 @@ async def index():
     return HTMLResponse(html_path.read_text())
 
 
+@app.get("/api/results/{session_id}")
+async def get_results(session_id: str):
+    """Fallback endpoint — get results if SSE stream broke."""
+    if session_id not in sessions:
+        return {"status": "no_session"}
+    session = sessions[session_id]
+    last_results = session.get("last_results")
+    if last_results:
+        return {
+            "status": "done",
+            "results": last_results.get("results", []),
+            "recommendation": last_results.get("recommendation", ""),
+        }
+    return {"status": "pending"}
+
+
 @app.post("/api/chat")
 async def chat(request: Request):
     body = await request.json()
@@ -255,6 +271,12 @@ async def chat(request: Request):
             ranked_results, ai_recommendation = await _ai_rank_and_recommend(
                 all_results, correct_movie, num_seats, format_pref, zipcode
             )
+
+            # Save results to session so fallback endpoint can serve them
+            session["last_results"] = {
+                "results": ranked_results,
+                "recommendation": ai_recommendation,
+            }
 
             yield _sse("results", json.dumps(ranked_results))
             yield _sse("recommendation", ai_recommendation)

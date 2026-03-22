@@ -414,18 +414,35 @@
         setViewportHeight();
         window.addEventListener('resize', setViewportHeight);
 
-        // Detect tab suspension — if user leaves and comes back while searching
+        // Detect tab suspension — if user leaves and comes back, check for results
         let searchStartTime = 0;
-        document.addEventListener('visibilitychange', () => {
+        document.addEventListener('visibilitychange', async () => {
             if (document.visibilityState === 'visible' && isSearching && searchStartTime > 0) {
                 const elapsed = (Date.now() - searchStartTime) / 1000;
-                if (elapsed > 120) {
-                    // Search has been running for over 2 minutes — likely timed out
-                    chat.querySelectorAll('.message.status').forEach(el => el.remove());
-                    chat.querySelectorAll('.theater-progress').forEach(el => el.remove());
-                    addMessage('assistant', 'The search may have timed out while you were away. Please try again!');
-                    isSearching = false;
-                    sendBtn.disabled = false;
+                if (elapsed > 30) {
+                    // User was away for 30+ seconds — check if results are ready
+                    try {
+                        const res = await fetch(API_URL + '/api/results/' + sessionId);
+                        const data = await res.json();
+                        if (data.status === 'done' && data.results && data.results.length > 0) {
+                            // Results came in while user was away!
+                            chat.querySelectorAll('.message.status').forEach(el => el.remove());
+                            chat.querySelectorAll('.theater-progress').forEach(el => el.remove());
+                            const container = addMessage('assistant', renderResults(data.results));
+                            if (data.recommendation) {
+                                const recDiv = document.createElement('div');
+                                recDiv.className = 'recommendation';
+                                recDiv.textContent = data.recommendation;
+                                container.appendChild(recDiv);
+                            }
+                            isSearching = false;
+                            searchStartTime = 0;
+                            sendBtn.disabled = false;
+                            chat.scrollTop = chat.scrollHeight;
+                        }
+                    } catch (e) {
+                        // Fallback failed — let SSE continue or show timeout
+                    }
                 }
             }
         });
@@ -573,11 +590,25 @@
                     }
                 }
             } catch (err) {
-                // Check if it's a tab suspension / timeout issue
+                // SSE broke — try fallback endpoint
                 chat.querySelectorAll('.message.status').forEach(el => el.remove());
                 chat.querySelectorAll('.theater-progress').forEach(el => el.remove());
-                if (!resultContainer) {
-                    addMessage('assistant', 'The search timed out — this can happen if you switch tabs or lose connection. Please try again!');
+                try {
+                    const res = await fetch(API_URL + '/api/results/' + sessionId);
+                    const data = await res.json();
+                    if (data.status === 'done' && data.results && data.results.length > 0) {
+                        resultContainer = addMessage('assistant', renderResults(data.results));
+                        if (data.recommendation) {
+                            const recDiv = document.createElement('div');
+                            recDiv.className = 'recommendation';
+                            recDiv.textContent = data.recommendation;
+                            resultContainer.appendChild(recDiv);
+                        }
+                    } else {
+                        addMessage('assistant', 'The search is still running or timed out. Please try again!');
+                    }
+                } catch (e) {
+                    addMessage('assistant', 'Connection lost. Please try again!');
                 }
             }
             isSearching = false;
