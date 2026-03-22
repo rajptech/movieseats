@@ -139,8 +139,19 @@ async def chat(request: Request):
                 yield _sse("chat_response", parsed.get("response", "I need a movie name and zipcode to search. What movie are you looking for and what's your zipcode?"))
                 return
 
+            # Build display date
+            display_date = "today"
+            if date:
+                try:
+                    today = datetime.date.today()
+                    month = today.month
+                    target = datetime.date(today.year, month, int(date))
+                    display_date = target.strftime("%A, %B %d")
+                except Exception:
+                    display_date = f"the {date}th"
+
             yield _sse("parsed", json.dumps(parsed))
-            yield _sse("status", f"Searching for {movie} near {zipcode}...")
+            yield _sse("status", f"Searching for {movie} near {zipcode} for {display_date}...")
 
             # Save search params
             session["last_search"] = parsed
@@ -171,7 +182,7 @@ async def chat(request: Request):
                     return
 
                 total_st = sum(len(t.showtimes) for t in theaters)
-                yield _sse("status", f"Found {len(theaters)} theaters, {total_st} showtimes. Fetching seat maps...")
+                yield _sse("status", f"Found {len(theaters)} theaters, {total_st} showtimes for {display_date}. Fetching seat maps...")
 
                 seat_data = await fetch_all_seat_maps(theaters, context)
                 await browser.close()
@@ -181,7 +192,9 @@ async def chat(request: Request):
                 return
 
             elapsed = time.time() - start
-            yield _sse("status", f"Scanned {len(seat_data)} showtimes in {elapsed:.0f}s. Analyzing...")
+            failed = total_st - len(seat_data)
+            fail_msg = f" ({failed} showtimes couldn't load)" if failed > 0 else ""
+            yield _sse("status", f"Scanned {len(seat_data)} showtimes for {display_date} in {elapsed:.0f}s{fail_msg}. Analyzing...")
 
             # Step 4: Score and build results
             all_results = []

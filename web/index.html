@@ -501,7 +501,8 @@
                                 addMessage('error', data);
                             } else if (event === 'parsed') {
                                 const p = JSON.parse(data);
-                                addMessage('status', `Searching: ${p.movie} near ${p.zipcode} &middot; ${p.time_pref} &middot; ${p.seats} seats`);
+                                const dateStr = p.date ? `date: ${p.date}` : 'today';
+                                addMessage('status', `Searching: ${p.movie} near ${p.zipcode} &middot; ${dateStr} &middot; ${p.time_pref} &middot; ${p.seats} seats`);
                                 if (window.firebaseLogEvent) {
                                     window.firebaseLogEvent('search_parsed', {
                                         movie: p.movie, zipcode: p.zipcode,
