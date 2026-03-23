@@ -17,6 +17,7 @@ from config import ANTHROPIC_API_KEY, MODEL_FAST, MODEL_SMART
 from movieseats.fetcher.theaters import find_theaters_and_showtimes
 from movieseats.fetcher.seats import fetch_all_seat_maps
 # from movieseats.fetcher.browse import browse_movies_near  # disabled for now
+from movieseats.fetcher.india import find_india_theaters, fetch_india_seat_map, INDIA_CITIES
 from movieseats.seats.scorer import find_best_seats
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s", datefmt="%H:%M:%S")
@@ -203,14 +204,23 @@ Question: {query}"""}],
             num_seats = parsed.get("seats", 2)
             format_pref = parsed.get("format_pref", "any")
             seat_pref = parsed.get("seat_pref", "best")
+            country = parsed.get("country", "us")
 
             location_name = parsed.get("location_name", "")
 
-            if not zipcode:
-                yield _sse("chat_response", f"I'd love to find seats for {movie_raw}! What's your zipcode or city?")
-                session["last_search"] = parsed
-                session["history"].append({"role": "user", "content": message})
-                return
+            # India: need city name, not zipcode
+            if country == "india":
+                if not location_name:
+                    yield _sse("chat_response", f"I'd love to find seats for {movie_raw}! Which city in India are you in?")
+                    session["last_search"] = parsed
+                    session["history"].append({"role": "user", "content": message})
+                    return
+            else:
+                if not zipcode:
+                    yield _sse("chat_response", f"I'd love to find seats for {movie_raw}! What's your zipcode or city?")
+                    session["last_search"] = parsed
+                    session["history"].append({"role": "user", "content": message})
+                    return
 
             if not movie_raw:
                 yield _sse("chat_response", "What movie are you looking for?")
@@ -251,32 +261,60 @@ Question: {query}"""}],
                 context = await browser.new_context(viewport={"width": 1366, "height": 768},
                     user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36")
 
-                date_text = date
-                if date_text and "/" not in date_text:
-                    month = datetime.date.today().month
-                    date_text = f"{month}/{date_text}"
+                seat_data = []
 
-                theaters = await find_theaters_and_showtimes(
-                    context, zipcode, correct_movie, date_text=date_text, time_pref=time_pref,
-                )
+                if country == "india":
+                    # --- INDIA PATH (District.in) ---
+                    india_city = location_name or "hyderabad"
+                    india_results = await find_india_theaters(context, india_city, correct_movie)
 
-                if not theaters:
-                    yield _sse("chat_response", f"I couldn't find {correct_movie} at Cinemark theaters near {location_display}. This could mean the movie isn't playing at Cinemark in your area, or showtimes haven't been posted yet. Try a nearby zipcode or check back later!")
-                    session["history"].append({"role": "user", "content": message})
-                    session["history"].append({"role": "assistant", "content": f"No Cinemark theaters found showing {correct_movie} near {location_display}."})
-                    await browser.close()
-                    return
+                    if not india_results:
+                        yield _sse("chat_response", f"I couldn't find {correct_movie} in theaters near {india_city}. The movie might not be playing in your city yet, or try a different city name.")
+                        session["history"].append({"role": "user", "content": message})
+                        session["history"].append({"role": "assistant", "content": f"No theaters found showing {correct_movie} near {india_city}."})
+                        await browser.close()
+                        return
 
-                total_st = sum(len(t.showtimes) for t in theaters)
+                    total_st = sum(len(sts) for _, sts in india_results)
 
-                # Stream live theater progress
-                for t in theaters:
-                    st_count = len(t.showtimes)
-                    yield _sse("theater_progress", json.dumps({"name": t.name, "showtimes": st_count}))
+                    for theater_name, showtimes in india_results:
+                        yield _sse("theater_progress", json.dumps({"name": theater_name, "showtimes": len(showtimes)}))
 
-                yield _sse("status", f"Checking seats across {total_st} showtimes...")
+                    yield _sse("status", f"Checking seats across {total_st} showtimes...")
 
-                seat_data = await fetch_all_seat_maps(theaters, context)
+                    for theater_name, showtimes in india_results:
+                        for st in showtimes:
+                            result = await fetch_india_seat_map(context, st, correct_movie, india_city)
+                            if result:
+                                seat_data.append(result)
+
+                else:
+                    # --- US PATH (Cinemark) ---
+                    date_text = date
+                    if date_text and "/" not in date_text:
+                        month = datetime.date.today().month
+                        date_text = f"{month}/{date_text}"
+
+                    theaters = await find_theaters_and_showtimes(
+                        context, zipcode, correct_movie, date_text=date_text, time_pref=time_pref,
+                    )
+
+                    if not theaters:
+                        yield _sse("chat_response", f"I couldn't find {correct_movie} at theaters near {location_display}. The movie might not be playing in your area, or showtimes haven't been posted yet. Try a different zipcode or check back later!")
+                        session["history"].append({"role": "user", "content": message})
+                        session["history"].append({"role": "assistant", "content": f"No theaters found showing {correct_movie} near {location_display}."})
+                        await browser.close()
+                        return
+
+                    total_st = sum(len(t.showtimes) for t in theaters)
+
+                    for t in theaters:
+                        yield _sse("theater_progress", json.dumps({"name": t.name, "showtimes": len(t.showtimes)}))
+
+                    yield _sse("status", f"Checking seats across {total_st} showtimes...")
+
+                    seat_data = await fetch_all_seat_maps(theaters, context)
+
                 await browser.close()
 
             if not seat_data:
@@ -369,7 +407,7 @@ INTENT_SYSTEM = """You parse user messages for a movie seat finder app. Today is
 Return JSON only. There are 3 possible actions:
 
 ACTION 1 - SEARCH (find best seats for a movie):
-{{"action":"search","movie":"movie name AS TYPED","zipcode":"5-digit zip","location_name":"city/area name","date":"day number or empty","time_pref":"morning|afternoon|evening|all","seats":2,"format_pref":"any|imax|xd|standard|cheapest","seat_pref":"best|back|front|aisle|center"}}
+{{"action":"search","movie":"movie name AS TYPED","zipcode":"5-digit zip or empty","location_name":"city/area name","country":"us|india","date":"day number or empty","time_pref":"morning|afternoon|evening|all","seats":2,"format_pref":"any|imax|xd|standard|cheapest|dolby","seat_pref":"best|back|front|aisle|center"}}
 
 ACTION 2 - INFO (answer a question using web search — about movies, theaters, genres, actors, logistics, pricing):
 {{"action":"info","query":"the user's question to research","zipcode":"zip if mentioned","location_name":"city if mentioned"}}
@@ -400,7 +438,10 @@ IMPORTANT RULES:
 - Default: seats=2, time_pref="evening", format_pref="any", seat_pref="best"
 - DO NOT correct movie spelling — return exactly what user typed
 - ANY 5-digit number is a valid US zipcode. NEVER reject a zipcode.
-- CITY NAMES → convert to zipcode. Common: Frisco=75035, Plano=75024, Allen=75013, McKinney=75070, Dallas=75201, Irvine=92614, LA=90001, NYC=10001, Chicago=60601, Houston=77001, SF=94102, Dublin CA=94568, Sunnyvale=94086.
+- CITY NAMES → convert to zipcode. Common US: Frisco=75035, Plano=75024, Allen=75013, McKinney=75070, Dallas=75201, Irvine=92614, LA=90001, NYC=10001, Chicago=60601, Houston=77001, SF=94102, Dublin CA=94568, Sunnyvale=94086.
+- INDIA: If user mentions an Indian city (Hyderabad, Mumbai, Delhi, Bangalore, Chennai, Kolkata, Pune, etc) or uses a 6-digit pincode, set country="india" and location_name to the city name. Leave zipcode empty for India.
+- Indian cities: Hyderabad, Mumbai, Delhi, Bangalore/Bengaluru, Chennai, Kolkata, Pune, Ahmedabad, Jaipur, Lucknow, Kochi, Chandigarh, Noida, Gurgaon/Gurugram, Vizag, Indore, Bhopal, Secunderabad, Gachibowli.
+- Default country="us" unless Indian city/pincode is detected.
 - "near me" with NO city/zipcode → need_zipcode
 - Follow-ups: use previous movie/zipcode from conversation history
 - "how about morning" / "check Monday" / "3 tickets" → search, keep previous context, change only what they asked"""
