@@ -287,11 +287,21 @@ Question: {query}"""}],
 
                     yield _sse("status", f"Checking seats across {total_st} showtimes...")
 
-                    for theater_name, showtimes in india_results:
-                        for st in showtimes:
-                            result = await fetch_india_seat_map(context, st, india_movie, india_city)
-                            if result:
-                                seat_data.append(result)
+                    # Fetch seat maps in parallel (max 6 at a time)
+                    all_showtimes = [(st, india_movie, india_city) for _, sts in india_results for st in sts]
+                    semaphore = asyncio.Semaphore(6)
+
+                    async def fetch_one_india(st, movie, city):
+                        async with semaphore:
+                            return await fetch_india_seat_map(context, st, movie, city)
+
+                    results_list = await asyncio.gather(
+                        *[fetch_one_india(st, m, c) for st, m, c in all_showtimes],
+                        return_exceptions=True,
+                    )
+                    for r in results_list:
+                        if isinstance(r, tuple):
+                            seat_data.append(r)
 
                 else:
                     # --- US PATH (Cinemark) ---

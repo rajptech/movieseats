@@ -161,12 +161,21 @@ async def find_india_theaters(
                 url=seat_url,
             ))
 
-        # Limit per theater
-        for name, showtimes in theater_map.items():
-            picked = showtimes[:max_per_theater]
-            results.append((name, picked))
+        # Limit per theater and total
+        MAX_THEATERS = 8
+        MAX_TOTAL_SHOWTIMES = 15
 
-        logger.info("Found %d theaters for %s in %s", len(results), movie_name, city)
+        total_picked = 0
+        for name, showtimes in theater_map.items():
+            if len(results) >= MAX_THEATERS or total_picked >= MAX_TOTAL_SHOWTIMES:
+                break
+            remaining = MAX_TOTAL_SHOWTIMES - total_picked
+            picked = showtimes[:min(max_per_theater, remaining)]
+            results.append((name, picked))
+            total_picked += len(picked)
+
+        logger.info("Found %d theaters, %d showtimes (capped) for %s in %s",
+                     len(results), total_picked, movie_name, city)
 
     except Exception as e:
         logger.error("India theater discovery failed: %s", e)
